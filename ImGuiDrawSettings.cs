@@ -67,6 +67,12 @@ internal class ImGuiDrawSettings
         {
             // Error handling without logging
         }
+        finally
+        {
+            // Every section pushes a header colour and an ID; ImGui 1.92 reports any left on the stack
+            ImGui.PopID();
+            ImGui.PopStyleColor();
+        }
 
 
         try
@@ -121,6 +127,12 @@ internal class ImGuiDrawSettings
         {
             // Error handling without logging
         }
+        finally
+        {
+            // Every section pushes a header colour and an ID; ImGui 1.92 reports any left on the stack
+            ImGui.PopID();
+            ImGui.PopStyleColor();
+        }
             
 
 
@@ -142,6 +154,12 @@ internal class ImGuiDrawSettings
         catch (Exception e)
         {
             // Error handling without logging
+        }
+        finally
+        {
+            // Every section pushes a header colour and an ID; ImGui 1.92 reports any left on the stack
+            ImGui.PopID();
+            ImGui.PopStyleColor();
         }
 
         try
@@ -182,6 +200,12 @@ internal class ImGuiDrawSettings
         {
             // Error handling without logging
         }
+        finally
+        {
+            // Every section pushes a header colour and an ID; ImGui 1.92 reports any left on the stack
+            ImGui.PopID();
+            ImGui.PopStyleColor();
+        }
 
         try
         {
@@ -200,6 +224,12 @@ internal class ImGuiDrawSettings
         catch (Exception e)
         {
             // Error handling without logging
+        }
+        finally
+        {
+            // Every section pushes a header colour and an ID; ImGui 1.92 reports any left on the stack
+            ImGui.PopID();
+            ImGui.PopStyleColor();
         }
 
         try
@@ -220,6 +250,12 @@ internal class ImGuiDrawSettings
         catch (Exception e)
         {
             // Error handling without logging
+        }
+        finally
+        {
+            // Every section pushes a header colour and an ID; ImGui 1.92 reports any left on the stack
+            ImGui.PopID();
+            ImGui.PopStyleColor();
         }
 
         try
@@ -262,6 +298,12 @@ internal class ImGuiDrawSettings
         catch (Exception e)
         {
             // Error handling without logging
+        }
+        finally
+        {
+            // Every section pushes a header colour and an ID; ImGui 1.92 reports any left on the stack
+            ImGui.PopID();
+            ImGui.PopStyleColor();
         }
 
         try
@@ -348,6 +390,12 @@ internal class ImGuiDrawSettings
         {
             // Error handling without logging
         }
+        finally
+        {
+            // Every section pushes a header colour and an ID; ImGui 1.92 reports any left on the stack
+            ImGui.PopID();
+            ImGui.PopStyleColor();
+        }
 
         try
         {
@@ -375,6 +423,12 @@ internal class ImGuiDrawSettings
         catch (Exception e)
         {
             // Error handling without logging
+        }
+        finally
+        {
+            // Every section pushes a header colour and an ID; ImGui 1.92 reports any left on the stack
+            ImGui.PopID();
+            ImGui.PopStyleColor();
         }
 
         try
@@ -412,6 +466,12 @@ internal class ImGuiDrawSettings
         {
             // Error handling without logging
         }
+        finally
+        {
+            // Every section pushes a header colour and an ID; ImGui 1.92 reports any left on the stack
+            ImGui.PopID();
+            ImGui.PopStyleColor();
+        }
 
         try
         {
@@ -447,6 +507,12 @@ internal class ImGuiDrawSettings
         catch (Exception e)
         {
             // Error handling without logging
+        }
+        finally
+        {
+            // Every section pushes a header colour and an ID; ImGui 1.92 reports any left on the stack
+            ImGui.PopID();
+            ImGui.PopStyleColor();
         }
 
         try
@@ -487,6 +553,12 @@ internal class ImGuiDrawSettings
         {
             BetterFollowbot.Instance.LogMessage($"AUTO LEVEL GEMS UI ERROR: {e.Message}");
         }
+        finally
+        {
+            // Every section pushes a header colour and an ID; ImGui 1.92 reports any left on the stack
+            ImGui.PopID();
+            ImGui.PopStyleColor();
+        }
 
         try
         {
@@ -510,6 +582,12 @@ internal class ImGuiDrawSettings
         catch (Exception e)
         {
             BetterFollowbot.Instance.LogMessage($"AUTO JOIN PARTY & ACCEPT TRADE UI ERROR: {e.Message}");
+        }
+        finally
+        {
+            // Every section pushes a header colour and an ID; ImGui 1.92 reports any left on the stack
+            ImGui.PopID();
+            ImGui.PopStyleColor();
         }
 
         try
@@ -535,6 +613,12 @@ internal class ImGuiDrawSettings
         catch (Exception e)
         {
             BetterFollowbot.Instance.LogMessage($"GENERAL SETTINGS UI ERROR: {e.Message}");
+        }
+        finally
+        {
+            // Every section pushes a header colour and an ID; ImGui 1.92 reports any left on the stack
+            ImGui.PopID();
+            ImGui.PopStyleColor();
         }
 
         //ImGui.End();
