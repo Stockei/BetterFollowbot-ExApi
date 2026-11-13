@@ -302,27 +302,23 @@ public class ImGuiExtension
     // Unput Text
     public static string InputText(string label, string currentValue, uint maxLength, ImGuiInputTextFlags flags)
     {
-        var buff = new byte[maxLength];
-        if (!string.IsNullOrEmpty(currentValue))
-        {
-            var currentValueBytes = Encoding.UTF8.GetBytes(currentValue);
-            Array.Copy(currentValueBytes, buff, currentValueBytes.Length);
-        }
-
-        ImGui.InputText(label, buff, maxLength, flags);
-        return Encoding.Default.GetString(buff).TrimEnd('\0');
+        var value = currentValue ?? string.Empty;
+        ImGui.InputText(label, ref value, maxLength, flags);
+        return value;
     }
 
     // ImColor_HSV Maker
     public static ImGuiVector4 ImColor_HSV(float h, float s, float v)
     {
-        ImGui.ColorConvertHSVtoRGB(h, s, v, out var r, out var g, out var b);
+        float r = 0, g = 0, b = 0;
+        ImGui.ColorConvertHSVtoRGB(h, s, v, ref r, ref g, ref b);
         return new ImGuiVector4(r, g, b, 255);
     }
 
     public static ImGuiVector4 ImColor_HSV(float h, float s, float v, float a)
     {
-        ImGui.ColorConvertHSVtoRGB(h, s, v, out var r, out var g, out var b);
+        float r = 0, g = 0, b = 0;
+        ImGui.ColorConvertHSVtoRGB(h, s, v, ref r, ref g, ref b);
         return new ImGuiVector4(r, g, b, a);
     }
 
@@ -374,7 +370,7 @@ public class ImGuiExtension
     //End Columns
     public static void EndColumn()
     {
-        ImGui.Columns(1, null, false);
+        ImGui.Columns(1, false);
     }
 
     public static void ToolTip(string desc)

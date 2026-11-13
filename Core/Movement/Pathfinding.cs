@@ -50,7 +50,7 @@ namespace BetterFollowbot.Core.Movement
             try
             {
                 _terrainMetadata = BetterFollowbot.Instance.GameController.IngameState.Data.DataStruct.Terrain;
-                var terrainBytes = BetterFollowbot.Instance.GameController.Memory.ReadBytes(_terrainMetadata.LayerMelee.First, _terrainMetadata.LayerMelee.Size);
+                var terrainBytes = BetterFollowbot.Instance.GameController.Memory.ReadBytes(_terrainMetadata.LayerMelee.First, _terrainMetadata.LayerMelee.Last - _terrainMetadata.LayerMelee.First);
 
                 var numCols = (int)(_terrainMetadata.NumCols - 1) * 23;
                 var numRows = (int)(_terrainMetadata.NumRows - 1) * 23;
