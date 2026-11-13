@@ -2,6 +2,10 @@
 
 A Path of Exile plugin for ExileCore/PoeHelper that provides automated follow bot functionality with intelligent skill usage and navigation.
 
+> **This fork** builds on ExileApi 329.x (Hexa.NET.ImGui) and adds leader commands in party chat: the follower
+> starts paused and waits for the leader's start command, and can dump its inventory into the guild stash.
+> See [Party chat commands](#party-chat-commands) and [CHANGELOG.md](CHANGELOG.md).
+
 ## Features
 
 - **Automated Following**: Intelligent pathfinding and following of party leader
@@ -26,6 +30,21 @@ A Path of Exile plugin for ExileCore/PoeHelper that provides automated follow bo
 2. Set your leader's character name in the AutoPilot settings
 3. Configure skill hotkeys and automation preferences
 4. Toggle AutoPilot mode with the configured hotkey
+
+### Party chat commands
+
+The leader (the AutoPilot leader name) types these in **party chat**; only the leader's party messages count.
+
+| Command (default) | Effect |
+|---|---|
+| `-s` | Start following and skills |
+| `-p` | Pause following and skills (joining the party, respawn and gem levelling go on) |
+| `lets stash` | Pause, walk to the guild stash, open it, check that the first tab is named `dump tab`, Ctrl+click every inventory item except the ignored slots, close the stash. Stays paused until `-s`. |
+
+- After loading the follower is **paused** until `-s`. The AutoPilot toggle hotkey also ends the pause.
+- Commands, tab name, waits and the ignored inventory slots are in the menu sections *Party Chat Commands* and *Guild Stash Dump*.
+- If the plugin also runs on the leader's own PC, switch *Dump to guild stash on leader command* off there; otherwise the leader dumps as well.
+- Debug logs (optional) go to `%TEMP%\BetterFollowbotDebug`.
 
 ### Key Features Configuration
 

@@ -142,6 +142,32 @@ public class BetterFollowbotSettings : ISettings
 
     #endregion
 
+    #region Party Chat Commands
+
+    // The leader types these in party chat. The follower starts paused and waits for the start command.
+    public ToggleNode partyChatCommandsEnabled = new ToggleNode(true);
+    public TextNode partyChatStartCommand = new TextNode("-s");
+    public TextNode partyChatStopCommand = new TextNode("-p");
+    public TextNode partyChatStashCommand = new TextNode("lets stash");
+    public RangeNode<int> partyChatPollMs = new RangeNode<int>(1000, 1000, 5000);
+    public ToggleNode debugPartyChatCommandsToTxt = new ToggleNode(false);
+
+    #endregion
+
+    #region Guild Stash Dump
+
+    // Switch this off on the leader's own PC: the plugin there reads the leader's command too.
+    public ToggleNode guildStashDumpEnabled = new ToggleNode(true);
+    public TextNode guildStashDumpTabName = new TextNode("dump tab");
+    public RangeNode<int> guildStashItemConfirmTimeoutMs = new RangeNode<int>(3000, 1000, 10000);
+    public RangeNode<int> guildStashItemPauseMs = new RangeNode<int>(200, 100, 2000);
+    public RangeNode<int> guildStashCloseDelayMs = new RangeNode<int>(2500, 0, 10000);
+    // [row, column] of the 5 x 12 inventory; checked = never dumped
+    public bool[,] guildStashIgnoredCells = new bool[5, 12];
+    public ToggleNode debugGuildStashDumpToTxt = new ToggleNode(false);
+
+    #endregion
+
     #region General Settings
 
     public ToggleNode disableSkillsInHideout = new ToggleNode(true);

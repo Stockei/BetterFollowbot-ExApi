@@ -648,7 +648,7 @@ namespace BetterFollowbot;
     {
         while (true)
         {
-            if (!BetterFollowbot.Instance.Settings.Enable.Value || !BetterFollowbot.Instance.Settings.autoPilotEnabled.Value || BetterFollowbot.Instance.localPlayer == null || !BetterFollowbot.Instance.localPlayer.IsAlive ||
+            if (!BetterFollowbot.Instance.IsFollowActive || BetterFollowbot.Instance.localPlayer == null || !BetterFollowbot.Instance.localPlayer.IsAlive ||
                 !BetterFollowbot.Instance.GameController.IsForeGroundCache || IsBlockingUiOpen() || BetterFollowbot.Instance.GameController.IsLoading || !BetterFollowbot.Instance.GameController.InGame)
             {
                 // Log check failures that might cause delays
@@ -1224,18 +1224,8 @@ namespace BetterFollowbot;
 
     public void Render()
     {
-        if (BetterFollowbot.Instance.Settings.autoPilotToggleKey.PressedOnce())
-        {
-            BetterFollowbot.Instance.Settings.autoPilotEnabled.SetValueNoEvent(!BetterFollowbot.Instance.Settings.autoPilotEnabled.Value);
-            _taskManager.ClearTasks();
-        }
-
-        if (BetterFollowbot.Instance.Settings.autoPilotEnabled)
-        {
-            // AutoPilot runs continuously when enabled
-        }
-
-        if (!BetterFollowbot.Instance.Settings.autoPilotEnabled || BetterFollowbot.Instance.GameController.IsLoading || !BetterFollowbot.Instance.GameController.InGame)
+        // The toggle hotkey is handled in BetterFollowbot.HandleFollowToggleHotkey, together with the party chat pause.
+        if (!BetterFollowbot.Instance.IsFollowActive || BetterFollowbot.Instance.GameController.IsLoading || !BetterFollowbot.Instance.GameController.InGame)
             return;
 
         try

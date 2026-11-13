@@ -23,7 +23,7 @@ using BetterFollowbot.Core.Skills;
 
 namespace BetterFollowbot;
 
-public class BetterFollowbot : BaseSettingsPlugin<BetterFollowbotSettings>, IFollowbotCore
+public partial class BetterFollowbot : BaseSettingsPlugin<BetterFollowbotSettings>, IFollowbotCore
 {
     private const int Delay = 45;
     private const int MouseAutoSnapRange = 250;
@@ -130,6 +130,8 @@ public class BetterFollowbot : BaseSettingsPlugin<BetterFollowbotSettings>, IFol
         automationManager.RegisterAutomation(respawnHandler);
         automationManager.RegisterAutomation(gemLeveler);
         automationManager.RegisterAutomation(partyJoiner);
+
+        InitialisePartyCommands();
 
         return true;
     }
@@ -555,6 +557,8 @@ public class BetterFollowbot : BaseSettingsPlugin<BetterFollowbotSettings>, IFol
             LogMessage($"AREA CHANGE: Reset player position from ({oldPosition.X:F1}, {oldPosition.Y:F1}) to ({playerPosition.X:F1}, {playerPosition.Y:F1}) - Change: {positionChange:F1} units");
         }
 
+        OnAreaChangePartyCommands();
+
         SkillInfo.ResetSkills();
         skills = null;
 
@@ -618,6 +622,12 @@ public class BetterFollowbot : BaseSettingsPlugin<BetterFollowbotSettings>, IFol
         try
         {
             if (!Settings.Enable) return;
+
+            ProcessPendingKeyReleases();
+            HandleFollowToggleHotkey();
+            // While the guild stash dump runs, nothing else may move the cursor or press keys.
+            if (TickPartyCommands()) return;
+
             SkillInfo.GetDeltaTime();
                 
             try
@@ -770,7 +780,12 @@ public class BetterFollowbot : BaseSettingsPlugin<BetterFollowbotSettings>, IFol
 
             #region Automation Execution
 
-            if (ShouldWaitForLeaderGrace)
+            if (IsFollowPausedByChat)
+            {
+                // Skills wait for the leader's start command; joining the party, respawn and gem levelling go on.
+                automationManager?.ExecuteAutomations();
+            }
+            else if (ShouldWaitForLeaderGrace)
             {
                 if (Settings.debugMode)
                 {

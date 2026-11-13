@@ -188,7 +188,7 @@ namespace BetterFollowbot.Core.Movement
                     }
                 }
 
-                if (!_core.Settings.Enable.Value || !_core.Settings.autoPilotEnabled.Value || _core.LocalPlayer == null || !_core.LocalPlayer.IsAlive ||
+                if (!_core.IsFollowActive || _core.LocalPlayer == null || !_core.LocalPlayer.IsAlive ||
                     !_core.GameController.IsForeGroundCache || IsBlockingUiOpen() || _core.GameController.IsLoading || !_core.GameController.InGame)
                 {
                     return;

@@ -102,5 +102,10 @@ namespace BetterFollowbot.Interfaces
         /// Record skill usage for tracking purposes
         /// </summary>
         void RecordSkillUse(string skillName);
+
+        /// <summary>
+        /// AutoPilot is on and neither paused by the leader's party chat commands nor busy with a guild stash dump
+        /// </summary>
+        bool IsFollowActive { get; }
     }
 }

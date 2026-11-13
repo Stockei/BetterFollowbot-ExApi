@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using ImGuiNET;
+using BetterFollowbot.PartyCommands;
 using SharpDX;
 using Vector2 = System.Numerics.Vector2;
 using Vector4 = System.Numerics.Vector4;
@@ -582,6 +583,96 @@ internal class ImGuiDrawSettings
         catch (Exception e)
         {
             BetterFollowbot.Instance.LogMessage($"AUTO JOIN PARTY & ACCEPT TRADE UI ERROR: {e.Message}");
+        }
+        finally
+        {
+            // Every section pushes a header colour and an ID; ImGui 1.92 reports any left on the stack
+            ImGui.PopID();
+            ImGui.PopStyleColor();
+        }
+
+        try
+        {
+            // Party Chat Commands
+            var settings = BetterFollowbot.Instance.Settings;
+            ImGui.PushStyleColor(ImGuiCol.Header, settings.partyChatCommandsEnabled ? green : red);
+            ImGui.PushID(39);
+            if (ImGui.TreeNodeEx("Party Chat Commands", collapsingHeaderFlags))
+            {
+                settings.partyChatCommandsEnabled.Value =
+                    ImGuiExtension.Checkbox("Enabled (follower waits for the start command)", settings.partyChatCommandsEnabled.Value);
+                ImGui.Text("The leader (AutoPilot leader name) types these in party chat.");
+                ImGui.Text("After loading, the stop command and a stash dump the follower and its skills stay paused until the start command.");
+                settings.partyChatStartCommand.Value = ImGuiExtension.InputText("Start command", settings.partyChatStartCommand.Value, 40, ImGuiInputTextFlags.None);
+                settings.partyChatStopCommand.Value = ImGuiExtension.InputText("Stop command", settings.partyChatStopCommand.Value, 40, ImGuiInputTextFlags.None);
+                settings.partyChatStashCommand.Value = ImGuiExtension.InputText("Guild stash dump command", settings.partyChatStashCommand.Value, 40, ImGuiInputTextFlags.None);
+                settings.partyChatPollMs.Value = ImGuiExtension.IntSlider("Command poll interval (ms)", settings.partyChatPollMs);
+                settings.debugPartyChatCommandsToTxt.Value =
+                    ImGuiExtension.Checkbox("Debug party chat commands to txt (%TEMP%\\BetterFollowbotDebug)", settings.debugPartyChatCommandsToTxt.Value);
+
+                var instance = BetterFollowbot.Instance;
+                ImGui.Text(instance.IsStashDumpActive ? "Current: guild stash dump running"
+                    : instance.IsFollowPausedByChat ? "Current: paused, waiting for the start command"
+                    : "Current: following");
+            }
+        }
+        catch (Exception e)
+        {
+            BetterFollowbot.Instance.LogMessage($"PARTY CHAT COMMANDS UI ERROR: {e.Message}");
+        }
+        finally
+        {
+            // Every section pushes a header colour and an ID; ImGui 1.92 reports any left on the stack
+            ImGui.PopID();
+            ImGui.PopStyleColor();
+        }
+
+        try
+        {
+            // Guild Stash Dump
+            var settings = BetterFollowbot.Instance.Settings;
+            ImGui.PushStyleColor(ImGuiCol.Header, settings.guildStashDumpEnabled ? green : red);
+            ImGui.PushID(40);
+            if (ImGui.TreeNodeEx("Guild Stash Dump", collapsingHeaderFlags))
+            {
+                settings.guildStashDumpEnabled.Value =
+                    ImGuiExtension.Checkbox("Dump to guild stash on leader command", settings.guildStashDumpEnabled.Value);
+                ImGui.Text("Walks to the guild stash, opens it, checks the first tab, Ctrl+clicks every item except the ignored slots,");
+                ImGui.Text("waits a moment and closes it with Escape. Switch this off on the leader's own PC.");
+                settings.guildStashDumpTabName.Value = ImGuiExtension.InputText("Dump tab name (first tab, empty = no check)", settings.guildStashDumpTabName.Value, 60, ImGuiInputTextFlags.None);
+                settings.guildStashItemConfirmTimeoutMs.Value = ImGuiExtension.IntSlider("Wait for an item to leave the inventory (ms)", settings.guildStashItemConfirmTimeoutMs);
+                settings.guildStashItemPauseMs.Value = ImGuiExtension.IntSlider("Pause between items (ms)", settings.guildStashItemPauseMs);
+                settings.guildStashCloseDelayMs.Value = ImGuiExtension.IntSlider("Wait before closing the stash (ms)", settings.guildStashCloseDelayMs);
+                settings.debugGuildStashDumpToTxt.Value =
+                    ImGuiExtension.Checkbox("Debug guild stash dump to txt (%TEMP%\\BetterFollowbotDebug)", settings.debugGuildStashDumpToTxt.Value);
+
+                ImGui.Separator();
+                ImGui.Text("Ignored inventory slots (checked = not dumped; the top-left cell of an item counts)");
+                if (ImGui.Button("Clear ignored slots"))
+                    settings.guildStashIgnoredCells = new bool[InventoryGridIgnoreHelper.Rows, InventoryGridIgnoreHelper.Columns];
+
+                settings.guildStashIgnoredCells = InventoryGridIgnoreHelper.Normalize(settings.guildStashIgnoredCells);
+                var ignoredCells = settings.guildStashIgnoredCells;
+                for (var y = 0; y < InventoryGridIgnoreHelper.Rows; y++)
+                {
+                    for (var x = 0; x < InventoryGridIgnoreHelper.Columns; x++)
+                    {
+                        var isIgnored = ignoredCells[y, x];
+                        if (ImGui.Checkbox($"##ignoredCell_{y}_{x}", ref isIgnored))
+                            ignoredCells[y, x] = isIgnored;
+
+                        if (x < InventoryGridIgnoreHelper.Columns - 1)
+                            ImGui.SameLine();
+                    }
+                }
+
+                if (BetterFollowbot.Instance.IsStashDumpActive)
+                    ImGui.Text("Current: dump running");
+            }
+        }
+        catch (Exception e)
+        {
+            BetterFollowbot.Instance.LogMessage($"GUILD STASH DUMP UI ERROR: {e.Message}");
         }
         finally
         {
