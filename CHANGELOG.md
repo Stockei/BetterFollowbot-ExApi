@@ -2,6 +2,11 @@
 
 Changes in this fork of BetterFollowbot, newest first. Each version is a git tag.
 
+## Unreleased
+
+### Added
+- **Debug logging** switch under *General Settings*, off by default. While it is off the plugin writes only errors to the HUD log; the status messages (AutoPilot, area changes, portals, skills, automations) are only logged with it on. The txt debug logs keep their own switches.
+
 ## v1.0.0 - 2026-11-13
 
 ### Added

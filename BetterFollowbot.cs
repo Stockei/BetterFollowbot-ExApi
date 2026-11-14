@@ -145,8 +145,10 @@ public partial class BetterFollowbot : BaseSettingsPlugin<BetterFollowbotSetting
     public IPathfinding Pathfinding => pathfinding;
     public DateTime LastTimeAny { get; set; } = DateTime.MinValue;
     
+    /// <summary>Writes to the HUD log only while "Debug logging" (debugMode) is on. Errors always go through LogError.</summary>
     public void LogMessage(string message)
     {
+        if (Settings?.debugMode?.Value != true) return;
         LogMsg(message);
     }
     

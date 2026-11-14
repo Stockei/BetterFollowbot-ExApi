@@ -699,6 +699,12 @@ internal class ImGuiDrawSettings
                 BetterFollowbot.Instance.Settings.skillCooldown.Value = 
                     ImGuiExtension.FloatSlider("Individual Skill Cooldown (seconds)", BetterFollowbot.Instance.Settings.skillCooldown);
                 ImGui.Text($"Each skill can be used every {BetterFollowbot.Instance.Settings.skillCooldown.Value:F2}s");
+
+                ImGui.Separator();
+                BetterFollowbot.Instance.Settings.debugMode.Value =
+                    ImGuiExtension.Checkbox("Debug logging", BetterFollowbot.Instance.Settings.debugMode.Value);
+                ImGui.Text("Off: only errors are written to the HUD log.");
+                ImGui.Text("On: every status message is logged (AutoPilot, area changes, portals, skills).");
             }
         }
         catch (Exception e)

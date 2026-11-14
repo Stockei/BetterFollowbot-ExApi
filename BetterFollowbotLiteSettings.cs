@@ -9,6 +9,7 @@ namespace BetterFollowbot;
 public class BetterFollowbotSettings : ISettings
 {
 
+    // "Debug logging" in General Settings: off = LogMessage writes nothing, only errors reach the HUD log
     public ToggleNode debugMode = new ToggleNode(false);
 
     public BetterFollowbotSettings()

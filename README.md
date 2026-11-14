@@ -109,7 +109,7 @@ Access plugin settings through the ExileCore menu:
 **General Settings:**
 - Enable/Disable individual features
 - Configure hotkeys and thresholds
-- Debug mode for troubleshooting
+- Debug logging (off by default: only errors reach the HUD log)
 - Skill cooldown timing
 - Hideout skill disabling
 
