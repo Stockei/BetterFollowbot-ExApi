@@ -36,6 +36,13 @@ public class BetterFollowbotSettings : ISettings
     public RangeNode<int> autoPilotDashDistance = new RangeNode<int>(500, 50, 2000);
     public RangeNode<int> autoPilotRandomActionDelay = new RangeNode<int>(15, 0, 100);
 
+    // Before the party (portrait) teleport: click a visible common entrance label instead (Arena, Stairs, The Pit, ...),
+    // like the PoE2 follower's Arena label. Extra labels: comma separated, matched as whole words.
+    public ToggleNode autoPilotEntranceLabelsFirst = new ToggleNode(true);
+    public TextNode autoPilotEntranceLabelsExtra = new TextNode("");
+    public RangeNode<int> autoPilotEntranceLabelMaxClicks = new RangeNode<int>(3, 1, 10);
+    public RangeNode<int> autoPilotEntranceLabelWaitMs = new RangeNode<int>(4000, 1000, 15000);
+
     #endregion
         
 

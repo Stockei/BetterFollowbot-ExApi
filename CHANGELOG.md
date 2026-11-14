@@ -6,6 +6,7 @@ Changes in this fork of BetterFollowbot, newest first. Each version is a git tag
 
 ### Added
 - **Debug logging** switch under *General Settings*, off by default. While it is off the plugin writes only errors to the HUD log; the status messages (AutoPilot, area changes, portals, skills, automations) are only logged with it on. The txt debug logs keep their own switches.
+- **Entrance labels before the party teleport**, like the Arena label in the PoE2 follower. Before the follower clicks the teleport button on the leader's portrait, it looks for a visible area transition label with a common entrance name (Arena, Stairs, The Pit, Warden's Quarters, Ascendancy Chamber, the act boss arenas, ...) and clicks that instead. Names match as whole words; *Extra entrance labels* adds your own (comma separated). Each label gets up to 3 clicks per zone, with a 4 s wait for the zone change after each; then, or when no entrance is visible, the party teleport goes ahead. A label matching the leader's zone name still comes first. Switch: *Auto Pilot > Entrance labels before party teleport* (on by default).
 
 ## v1.0.0 - 2026-11-13
 

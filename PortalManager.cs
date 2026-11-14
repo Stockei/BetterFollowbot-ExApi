@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using ExileCore;
 using ExileCore.PoEMemory;
 using ExileCore.PoEMemory.Elements;
@@ -261,6 +262,90 @@ namespace BetterFollowbot
             }
         }
 
+
+        // Entrance labels checked before the party teleport: every arena/special name above, matched as whole words
+        private static readonly string[] CommonEntranceLabels = SpecialPortalNames
+            .Concat(CloseArenaPortals)
+            .Concat(SpecialAreas)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        private const int MaxEntranceLabelsToInspect = 200;
+        private static string _entranceExtraLabelsSource;
+        private static Regex _entranceLabelRegex;
+
+        /// <summary>
+        /// Nearest visible AreaTransition label whose text is a common entrance (Arena, Stairs, The Pit, ...) or one of
+        /// the extra labels (comma separated). Port of the PoE2 follower's Arena label: only labels on screen count, so
+        /// the cheap ItemsOnGroundLabelsVisible list is enough. Labels for which <paramref name="skip"/> is true are ignored.
+        /// </summary>
+        public static LabelOnGround FindVisibleEntranceLabel(string extraLabels, Func<LabelOnGround, bool> skip)
+        {
+            try
+            {
+                var labels = BetterFollowbot.Instance.GameController?.IngameState?.IngameUi?.ItemsOnGroundLabelsVisible;
+                if (labels == null || labels.Count == 0)
+                    return null;
+
+                var regex = GetEntranceLabelRegex(extraLabels);
+                LabelOnGround best = null;
+                var bestDistance = float.MaxValue;
+
+                foreach (var label in labels.Take(MaxEntranceLabelsToInspect))
+                {
+                    var entity = label?.ItemOnGround;
+                    if (entity == null || entity.Type != ExileCore.Shared.Enums.EntityType.AreaTransition)
+                        continue;
+                    if (label.Label == null || !label.Label.IsValid || !label.Label.IsVisible)
+                        continue;
+
+                    var text = NormalizeLabelText(label.Label.Text);
+                    if (text.Length == 0 || !regex.IsMatch(text) || (skip != null && skip(label)))
+                        continue;
+
+                    var distance = entity.DistancePlayer;
+                    if (distance < bestDistance)
+                    {
+                        bestDistance = distance;
+                        best = label;
+                    }
+                }
+
+                return best;
+            }
+            catch (Exception ex)
+            {
+                BetterFollowbot.Instance.LogError($"ENTRANCE LABEL: Error scanning labels: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static Regex GetEntranceLabelRegex(string extraLabels)
+        {
+            extraLabels ??= string.Empty;
+            if (_entranceLabelRegex != null && extraLabels == _entranceExtraLabelsSource)
+                return _entranceLabelRegex;
+
+            var names = CommonEntranceLabels
+                .Concat(extraLabels.Split(',').Select(x => x.Trim()).Where(x => x.Length > 0))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(x => x.Length)
+                .Select(Regex.Escape);
+
+            _entranceLabelRegex = new Regex($@"\b(?:{string.Join("|", names)})\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            _entranceExtraLabelsSource = extraLabels;
+            return _entranceLabelRegex;
+        }
+
+        private static string NormalizeLabelText(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return string.Empty;
+
+            // Drop markup such as <rgb(...)>{...} and collapse whitespace
+            var plain = Regex.Replace(text, @"<[^>]*>|[{}]", string.Empty);
+            return Regex.Replace(plain, @"\s+", " ").Trim();
+        }
 
         /// <summary>
         /// Dynamically determines portal type from mappings

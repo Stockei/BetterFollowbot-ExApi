@@ -25,6 +25,11 @@ namespace BetterFollowbot.Core.Movement
         // Throttle frequent log messages
         private DateTime _lastPortalThresholdLog = DateTime.MinValue;
 
+        // Entrance labels before the party teleport: clicks per label in this zone, and the wait after a click
+        private readonly Dictionary<long, int> _entranceLabelClicks = new();
+        private DateTime _entranceLabelWaitUntil = DateTime.MinValue;
+        private uint _entranceLabelAreaHash;
+
         /// <summary>
         /// Checks if any blocking UI elements are open that should prevent path planning
         /// </summary>
@@ -312,9 +317,9 @@ namespace BetterFollowbot.Core.Movement
                                         _core.LogMessage($"ZONE TRANSITION: Transition task already exists, skipping matching portal creation for '{matchingPortal.Label?.Text}'");
                                     }
                                 }
-                                else
+                                else if (!TryEntranceLabelBeforeTeleport("leader in other zone"))
                                 {
-                                    _core.LogMessage("ZONE TRANSITION: No matching portals found, falling back to party teleport button");
+                                    _core.LogMessage("ZONE TRANSITION: No matching portals or entrance labels found, falling back to party teleport button");
                                     var tpButton = GetTpButton(leaderPartyElement);
                                     if (!tpButton.Equals(Vector2.Zero))
                                     {
@@ -399,9 +404,9 @@ namespace BetterFollowbot.Core.Movement
                                         _taskManager.AddTask(new TaskNode(matchingPortal, _core.Settings.autoPilotPathfindingNodeDistance.Value, TaskNodeType.Transition));
                                         _core.LogMessage("ZONE TRANSITION: Matching portal transition task added to queue (null entity case)");
                                     }
-                                    else
+                                    else if (!TryEntranceLabelBeforeTeleport("leader entity gone"))
                                     {
-                                        _core.LogMessage("ZONE TRANSITION: No matching portals found, falling back to party teleport button (null entity case)");
+                                        _core.LogMessage("ZONE TRANSITION: No matching portals or entrance labels found, falling back to party teleport button (null entity case)");
                                         var tpButton = GetTpButton(leaderPartyElement);
                                         if (!tpButton.Equals(Vector2.Zero))
                                         {
@@ -543,9 +548,9 @@ namespace BetterFollowbot.Core.Movement
                                             _core.LogMessage($"ZONE TRANSITION: Transition task already exists, skipping matching portal creation for '{matchingPortal.Label?.Text}'");
                                         }
                                     }
-                                    else
+                                    else if (!TryEntranceLabelBeforeTeleport("leader moved far"))
                                     {
-                                        _core.LogMessage("ZONE TRANSITION: No matching portals found, falling back to party teleport button");
+                                        _core.LogMessage("ZONE TRANSITION: No matching portals or entrance labels found, falling back to party teleport button");
                                         // SECOND: Try party teleport button if no matching portal
                                         var tpButton = GetTpButton(leaderPartyElement);
                                         if (!tpButton.Equals(Vector2.Zero))
@@ -847,6 +852,50 @@ namespace BetterFollowbot.Core.Movement
             {
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Runs right before the party teleport (portrait TP button), like the PoE2 follower's Arena label: when a common
+        /// entrance label (Arena, Stairs, The Pit, ...) is visible, click it instead. Each label gets a few clicks per zone,
+        /// with a wait for the zone change after every click; after that, or when none is visible, the teleport goes ahead.
+        /// Returns true when the entrance handles this update (a click was queued or the follower waits after one).
+        /// </summary>
+        private bool TryEntranceLabelBeforeTeleport(string context)
+        {
+            var settings = _core.Settings;
+            if (!settings.autoPilotEntranceLabelsFirst.Value)
+                return false;
+
+            var areaHash = _core.GameController?.Area?.CurrentArea?.Hash ?? 0;
+            if (areaHash != _entranceLabelAreaHash)
+            {
+                _entranceLabelAreaHash = areaHash;
+                _entranceLabelClicks.Clear();
+                _entranceLabelWaitUntil = DateTime.MinValue;
+            }
+
+            if (DateTime.Now < _entranceLabelWaitUntil)
+            {
+                _core.LogMessage($"ENTRANCE LABEL ({context}): waiting for the zone change after the last click, party teleport on hold");
+                return true;
+            }
+
+            var maxClicks = settings.autoPilotEntranceLabelMaxClicks.Value;
+            var label = PortalManager.FindVisibleEntranceLabel(
+                settings.autoPilotEntranceLabelsExtra.Value,
+                l => _entranceLabelClicks.GetValueOrDefault(l.Address) >= maxClicks);
+            if (label == null)
+                return false;
+
+            if (HasConflictingTransitionTasks())
+                return true;
+
+            var clicks = _entranceLabelClicks.GetValueOrDefault(label.Address) + 1;
+            _entranceLabelClicks[label.Address] = clicks;
+            _entranceLabelWaitUntil = DateTime.Now.AddMilliseconds(settings.autoPilotEntranceLabelWaitMs.Value);
+            _core.LogMessage($"ENTRANCE LABEL ({context}): clicking '{label.Label?.Text}' ({label.ItemOnGround.DistancePlayer:F0} away) instead of the party teleport, click {clicks}/{maxClicks}");
+            _taskManager.AddTask(new TaskNode(label, settings.autoPilotPathfindingNodeDistance.Value, TaskNodeType.Transition));
+            return true;
         }
 
         private bool HasConflictingTransitionTasks()

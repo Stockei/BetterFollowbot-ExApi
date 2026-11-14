@@ -122,6 +122,21 @@ internal class ImGuiDrawSettings
                     ImGuiExtension.IntSlider("Transition/Portal Detection Range", BetterFollowbot.Instance.Settings.autoPilotClearPathDistance);
                 BetterFollowbot.Instance.Settings.autoPilotRandomActionDelay.Value =
                     ImGuiExtension.IntSlider("Random Action Delay (ms)", BetterFollowbot.Instance.Settings.autoPilotRandomActionDelay);
+
+                ImGui.Separator();
+                var autoPilotSettings = BetterFollowbot.Instance.Settings;
+                autoPilotSettings.autoPilotEntranceLabelsFirst.Value =
+                    ImGuiExtension.Checkbox("Entrance labels before party teleport", autoPilotSettings.autoPilotEntranceLabelsFirst.Value);
+                ImGui.Text("Before the portrait teleport: click a visible entrance label (Arena, Stairs, The Pit, ...) instead.");
+                if (autoPilotSettings.autoPilotEntranceLabelsFirst.Value)
+                {
+                    autoPilotSettings.autoPilotEntranceLabelsExtra.Value = ImGuiExtension.InputText(
+                        "Extra entrance labels (comma separated)", autoPilotSettings.autoPilotEntranceLabelsExtra.Value, 300, ImGuiInputTextFlags.None);
+                    autoPilotSettings.autoPilotEntranceLabelMaxClicks.Value =
+                        ImGuiExtension.IntSlider("Entrance clicks per label and zone", autoPilotSettings.autoPilotEntranceLabelMaxClicks);
+                    autoPilotSettings.autoPilotEntranceLabelWaitMs.Value =
+                        ImGuiExtension.IntSlider("Wait for zone change after a click (ms)", autoPilotSettings.autoPilotEntranceLabelWaitMs);
+                }
             }
         }
         catch (Exception e)
