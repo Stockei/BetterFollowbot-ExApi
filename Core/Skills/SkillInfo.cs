@@ -521,7 +521,7 @@ internal static class SkillInfo
                     break;
                 case "destructive_link":
                     destructiveLink.Id = skill.Id;
-                    destructiveLink.BuffName = "destructive_link_source";
+                    destructiveLink.BuffName = "critical_link_source";
                     break;
                 case "smite":
                     smite.Id = skill.Id;

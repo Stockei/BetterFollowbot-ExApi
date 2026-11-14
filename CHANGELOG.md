@@ -8,6 +8,15 @@ Changes in this fork of BetterFollowbot, newest first. Each version is a git tag
 - **Debug logging** switch under *General Settings*, off by default. While it is off the plugin writes only errors to the HUD log; the status messages (AutoPilot, area changes, portals, skills, automations) are only logged with it on. The txt debug logs keep their own switches.
 - **Entrance labels before the party teleport**, like the Arena label in the PoE2 follower. Before the follower clicks the teleport button on the leader's portrait, it looks for a visible area transition label with a common entrance name (Arena, Stairs, The Pit, Warden's Quarters, Ascendancy Chamber, the act boss arenas, ...) and clicks that instead. Names match as whole words; *Extra entrance labels* adds your own (comma separated). Each label gets up to 3 clicks per zone, with a 4 s wait for the zone change after each; then, or when no entrance is visible, the party teleport goes ahead. A label matching the leader's zone name still comes first. Switch: *Auto Pilot > Entrance labels before party teleport* (on by default).
 
+### Fixed
+- **Link skills link every party member** (Flame, Protective and Destructive Link). Before, once one ally was linked the others were only linked if the cursor happened to rest on them already, so in a 3-player party the second ally was never linked.
+- **"Linked to <name>" only appears when the link landed:** after the key press the ally must show a new or renewed link buff cast by this character within 1.5 s. Otherwise the log says the link did not land, and that ally waits 2 s while the others get their turn. Before, the message appeared on every key press, also when the cast missed or the slot had no key.
+- The cursor rests on the ally's body centre (not their feet) until the game marks them as targeted, at most 150 ms, before the key press; it is placed with the window offset, so windowed mode works.
+- A link from another player of the same type no longer counts as this character's link.
+- A link is renewed when less than 40% of its duration is left (at least 1.5 s), instead of every 4 s.
+- Destructive Link uses the game's buff names (`critical_link_*`); before, it was never detected and re-cast endlessly.
+- A link skill on a skill bar slot without a key in *Input Keys* is reported once instead of silently "linking".
+
 ## v1.0.0 - 2026-11-13
 
 ### Added
