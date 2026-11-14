@@ -40,15 +40,21 @@ namespace BetterFollowbot.Skills
             return UIBlockingUtility.IsAnyBlockingUIOpen();
         }
 
-        // A link is renewed once less than this share of its duration is left (at least MinRefreshSeconds).
-        private const float RefreshShare = 0.4f;
-        private const float MinRefreshSeconds = 1.5f;
+        // The link buffs carry no countdown (their Timer reads Infinity), so each ally's link is timed here from the
+        // last cast on them and the skill's own duration (SkillEffectDuration), and renewed once this share of it has
+        // passed: early enough that one renewal lost to the wrong ally still leaves time for the next one.
+        private const double RenewAfterShare = 0.4;
+        // A renewal that is not urgent waits while another party member stands this close to the ally on screen.
+        private const double UrgentShare = 0.75;
+        private const float OverlapPx = 70f;
+        private const double FallbackDurationMs = 4000;
         // The cursor rests on the ally until the game marks them as targeted, at most this long, before the key press.
         private const double MaxAimMs = 150;
-        // After the key press the ally must show a fresh link buff from this character within this time.
+        // After the key press a new link must show up on the ally within this time.
         private const double ConfirmTimeoutMs = 1500;
-        // An ally whose link did not land is not tried again for this long (the other allies get their turn).
-        private const double RetryAfterFailMs = 2000;
+        // An ally whose link did not land, or who was covered by another ally, waits this long; the others go first.
+        private const double RetryAfterFailMs = 1000;
+        private const double RetryAfterCoveredMs = 400;
 
         /// <summary>One link cast on one ally, spread over a few frames: aim, press, confirm.</summary>
         private sealed class LinkAttempt
@@ -59,12 +65,14 @@ namespace BetterFollowbot.Skills
             public string PlayerName;
             public uint EntityId;
             public Keys Key;
-            public float TimerBefore;          // remaining time of our link on the ally before the cast; -1 = none
+            public bool HadLink;               // the ally already carried this character's link (a renewal)
             public DateTime AimedAt;
             public DateTime PressedAt = DateTime.MinValue;
         }
 
         private LinkAttempt _attempt;
+        // Last cast on an ally that the game showed as landed ("<name>_<linkType>").
+        private readonly Dictionary<string, DateTime> _linkedAt = new Dictionary<string, DateTime>();
         private readonly Dictionary<string, DateTime> _retryAfter = new Dictionary<string, DateTime>();
         private readonly HashSet<string> _missingKeyLogged = new HashSet<string>();
 
@@ -87,27 +95,28 @@ namespace BetterFollowbot.Skills
 
             if (!_instance.CanUseSkill("Links")) return;
 
-            // Only use skills when within follow range of the leader
-            if (!_instance.IsWithinFollowRange()) return;
+            // Skills normally wait while the bot catches up with the leader. A link about to run out (or gone) is
+            // renewed anyway: catching up can take longer than the link lasts.
+            var onlyUrgent = !_instance.IsWithinFollowRange();
 
             if (_settings.flameLinkEnabled &&
-                TryStartAttempt(SkillInfo.flameLink, "flame_link_target", "flame_link"))
+                TryStartAttempt(SkillInfo.flameLink, "flame_link_target", "flame_link", onlyUrgent))
                 return;
 
             if (_settings.protectiveLinkEnabled &&
-                TryStartAttempt(SkillInfo.protectiveLink, "bulwark_link_target", "protective_link"))
+                TryStartAttempt(SkillInfo.protectiveLink, "bulwark_link_target", "protective_link", onlyUrgent))
                 return;
 
             // Destructive Link's buffs are named critical_link_* in the game data.
             if (_settings.destructiveLinkEnabled)
-                TryStartAttempt(SkillInfo.destructiveLink, "critical_link_target", "destructive_link");
+                TryStartAttempt(SkillInfo.destructiveLink, "critical_link_target", "destructive_link", onlyUrgent);
         }
 
         /// <summary>
-        /// Picks the party member who needs this link most (none from this character first, then the least time left)
+        /// Picks the party member who needs this link most (no link from this character first, then the oldest link)
         /// and puts the cursor on them. Every party member in sight is linked in turn.
         /// </summary>
-        private bool TryStartAttempt(Core.Skills.Skill linkSkill, string targetBuffName, string linkType)
+        private bool TryStartAttempt(Core.Skills.Skill linkSkill, string targetBuffName, string linkType, bool onlyUrgent)
         {
             var skill = _instance.skills?.FirstOrDefault(s => s.Id == linkSkill.Id);
             if (skill == null) return false;
@@ -123,38 +132,42 @@ namespace BetterFollowbot.Skills
             if (!SkillInfo.ManageCooldown(linkSkill, skill))
                 return false;
 
+            var durationMs = LinkDurationMs(skill);
             var localId = _instance.localPlayer?.Id ?? 0;
-            var playerEntities = _instance.GameController.EntityListWrapper.ValidEntitiesByType[EntityType.Player]
-                .Where(x => x != null && x.IsValid && !x.IsHostile && x.Id != localId)
-                .ToList();
+            var allies = PartyAlliesOnScreen(localId);
 
             Entity bestEntity = null;
             string bestName = null;
-            var bestTimer = float.MaxValue;
+            var bestNeed = 0.0;
+            var bestHadLink = false;
             var now = DateTime.Now;
 
-            foreach (var partyElement in PartyElements.GetPlayerInfoElementList())
+            foreach (var (name, entity) in allies)
             {
-                var name = partyElement?.PlayerName;
-                if (string.IsNullOrEmpty(name)) continue;
-
-                if (_retryAfter.TryGetValue($"{name}_{linkType}", out var retryAt) && now < retryAt)
+                var timerKey = $"{name}_{linkType}";
+                if (_retryAfter.TryGetValue(timerKey, out var retryAt) && now < retryAt)
                     continue;
 
-                var entity = playerEntities.FirstOrDefault(x =>
-                    string.Equals(x.GetComponent<Player>()?.PlayerName, name, StringComparison.OrdinalIgnoreCase));
-                if (entity == null || !IsOnScreen(entity)) continue;
-
-                var ourLink = OurLinkOn(entity, targetBuffName, localId);
-                var timer = ourLink?.Timer ?? -1f;
-                if (ourLink != null && timer >= RefreshThreshold(ourLink))
+                // Need: 2 = no link from this character; else the share of the duration that has passed since our
+                // last landed cast (a link we did not time ourselves, e.g. after a reload, counts as due now).
+                var hasLink = OurLinkOn(entity, targetBuffName, localId) != null;
+                var need = !hasLink ? 2.0
+                    : _linkedAt.TryGetValue(timerKey, out var linkedAt) ? (now - linkedAt).TotalMilliseconds / durationMs
+                    : 1.0;
+                if (need < (onlyUrgent ? UrgentShare : RenewAfterShare))
                     continue;
 
-                if (timer < bestTimer)
+                // Another party member right next to this one on screen may get the link instead: a renewal that is
+                // not urgent waits until they stand apart.
+                if (need < UrgentShare && IsCoveredByAnother(entity, allies))
+                    continue;
+
+                if (need > bestNeed)
                 {
-                    bestTimer = timer;
+                    bestNeed = need;
                     bestEntity = entity;
                     bestName = name;
+                    bestHadLink = hasLink;
                 }
             }
 
@@ -169,7 +182,7 @@ namespace BetterFollowbot.Skills
                 PlayerName = bestName,
                 EntityId = bestEntity.Id,
                 Key = key,
-                TimerBefore = bestTimer,
+                HadLink = bestHadLink,
                 AimedAt = now
             };
             Mouse.SetCursorPos(AimPoint(bestEntity));
@@ -179,22 +192,31 @@ namespace BetterFollowbot.Skills
         private void ContinueAttempt()
         {
             var a = _attempt;
-            var entity = _instance.GameController.EntityListWrapper.ValidEntitiesByType[EntityType.Player]
-                .FirstOrDefault(x => x != null && x.IsValid && x.Id == a.EntityId);
+            var localId = _instance.localPlayer?.Id ?? 0;
+            var allies = PartyAlliesOnScreen(localId);
+            var entity = allies.Select(x => x.Entity).FirstOrDefault(x => x.Id == a.EntityId);
             if (entity == null)
             {
                 _attempt = null;
                 return;
             }
 
+            var timerKey = $"{a.PlayerName}_{a.LinkType}";
             var now = DateTime.Now;
             if (a.PressedAt == DateTime.MinValue)
             {
                 // Keep the cursor on the ally (the follow logic may move it) until the game marks them as targeted.
                 Mouse.SetCursorPos(AimPoint(entity));
-                var targeted = entity.GetComponent<Targetable>()?.isTargeted == true;
-                if (!targeted && (now - a.AimedAt).TotalMilliseconds < MaxAimMs)
+                if (!IsTargeted(entity) && (now - a.AimedAt).TotalMilliseconds < MaxAimMs)
                     return;
+
+                // The game marks another party member as the target: the cast would land on them. Try again shortly.
+                if (allies.Any(x => x.Entity.Id != a.EntityId && IsTargeted(x.Entity)))
+                {
+                    _retryAfter[timerKey] = now.AddMilliseconds(RetryAfterCoveredMs);
+                    _attempt = null;
+                    return;
+                }
 
                 Keyboard.KeyPress(a.Key);
                 a.PressedAt = DateTime.Now;
@@ -203,13 +225,32 @@ namespace BetterFollowbot.Skills
                 return;
             }
 
-            // Landed: the ally carries this character's link buff, new or renewed.
-            var ourLink = OurLinkOn(entity, a.TargetBuffName, _instance.localPlayer?.Id ?? 0);
-            if (ourLink != null && (a.TimerBefore < 0 || ourLink.Timer > a.TimerBefore + 0.5f))
+            var hasLink = OurLinkOn(entity, a.TargetBuffName, localId) != null;
+            if (a.HadLink)
             {
-                _lastLinkTime[$"{a.PlayerName}_{a.LinkType}"] = now;
-                _retryAfter.Remove($"{a.PlayerName}_{a.LinkType}");
-                _instance.LogMessage($"{a.LinkType.ToUpper()}: Linked to {a.PlayerName} ({ourLink.Timer:F1}s)");
+                // A renewal leaves no trace in the buff (no countdown to reset): give it a moment, then count it as
+                // renewed while the link is still there. Should it have gone to the wrong ally, the next renewal is
+                // due well before this link runs out.
+                if ((now - a.PressedAt).TotalMilliseconds < 300)
+                    return;
+
+                if (hasLink)
+                {
+                    _linkedAt[timerKey] = now;
+                    _retryAfter.Remove(timerKey);
+                    _instance.LogMessage($"{a.LinkType.ToUpper()}: Renewed link on {a.PlayerName}");
+                }
+
+                _attempt = null;
+                return;
+            }
+
+            if (hasLink)
+            {
+                _linkedAt[timerKey] = now;
+                _lastLinkTime[timerKey] = now;
+                _retryAfter.Remove(timerKey);
+                _instance.LogMessage($"{a.LinkType.ToUpper()}: Linked to {a.PlayerName}");
                 _attempt = null;
                 return;
             }
@@ -217,9 +258,58 @@ namespace BetterFollowbot.Skills
             if ((now - a.PressedAt).TotalMilliseconds < ConfirmTimeoutMs)
                 return;
 
-            _retryAfter[$"{a.PlayerName}_{a.LinkType}"] = now.AddMilliseconds(RetryAfterFailMs);
+            _retryAfter[timerKey] = now.AddMilliseconds(RetryAfterFailMs);
             _instance.LogMessage($"{a.LinkType.ToUpper()}: link to {a.PlayerName} did not land (key {a.Key}, out of range or not hovered?)");
             _attempt = null;
+        }
+
+        /// <summary>Party members (not this character) whose entity is loaded and on screen.</summary>
+        private List<(string Name, Entity Entity)> PartyAlliesOnScreen(uint localId)
+        {
+            var players = _instance.GameController.EntityListWrapper.ValidEntitiesByType[EntityType.Player]
+                .Where(x => x != null && x.IsValid && !x.IsHostile && x.Id != localId)
+                .ToList();
+
+            var allies = new List<(string Name, Entity Entity)>();
+            foreach (var partyElement in PartyElements.GetPlayerInfoElementList())
+            {
+                var name = partyElement?.PlayerName;
+                if (string.IsNullOrEmpty(name)) continue;
+
+                var entity = players.FirstOrDefault(x =>
+                    string.Equals(x.GetComponent<Player>()?.PlayerName, name, StringComparison.OrdinalIgnoreCase));
+                if (entity != null && IsOnScreen(entity))
+                    allies.Add((name, entity));
+            }
+
+            return allies;
+        }
+
+        /// <summary>The link's duration from this character's skill (gem level, quality and duration modifiers included).</summary>
+        private static double LinkDurationMs(ActorSkill skill)
+        {
+            try
+            {
+                if (skill.Stats != null && skill.Stats.TryGetValue(GameStat.SkillEffectDuration, out var ms) && ms > 0)
+                    return ms;
+            }
+            catch
+            {
+            }
+
+            return FallbackDurationMs;
+        }
+
+        private bool IsCoveredByAnother(Entity entity, List<(string Name, Entity Entity)> allies)
+        {
+            var point = AimPoint(entity);
+            return allies.Any(x => x.Entity.Id != entity.Id && Vector2.Distance(AimPoint(x.Entity), point) < OverlapPx);
+        }
+
+        private static bool IsTargeted(Entity entity)
+        {
+            try { return entity.GetComponent<Targetable>()?.isTargeted == true; }
+            catch { return false; }
         }
 
         /// <summary>The ally's link buff of this type cast by this character (another linker's buff does not count).</summary>
@@ -229,9 +319,6 @@ namespace BetterFollowbot.Skills
             return buffs?.FirstOrDefault(b => b != null && b.Name == targetBuffName &&
                                               (b.SourceEntityId == localId || b.SourceEntityId == 0));
         }
-
-        private static float RefreshThreshold(Buff link) =>
-            Math.Max(MinRefreshSeconds, link.MaxTime > 0 ? link.MaxTime * RefreshShare : MinRefreshSeconds);
 
         /// <summary>The ally's body centre in screen coordinates: the feet point often misses their hitbox.</summary>
         private static Vector2 AimPoint(Entity entity) => Helper.WorldToValidScreenPosition(entity.BoundsCenterPos);

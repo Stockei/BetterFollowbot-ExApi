@@ -10,10 +10,12 @@ Changes in this fork of BetterFollowbot, newest first. Each version is a git tag
 
 ### Fixed
 - **Link skills link every party member** (Flame, Protective and Destructive Link). Before, once one ally was linked the others were only linked if the cursor happened to rest on them already, so in a 3-player party the second ally was never linked.
-- **"Linked to <name>" only appears when the link landed:** after the key press the ally must show a new or renewed link buff cast by this character within 1.5 s. Otherwise the log says the link did not land, and that ally waits 2 s while the others get their turn. Before, the message appeared on every key press, also when the cast missed or the slot had no key.
+- **"Linked to <name>" only appears when the link landed:** after the key press the ally must show a link buff cast by this character within 1.5 s. Otherwise the log says the link did not land, and that ally waits 1 s while the others get their turn. Before, the message appeared on every key press, also when the cast missed or the slot had no key.
 - The cursor rests on the ally's body centre (not their feet) until the game marks them as targeted, at most 150 ms, before the key press; it is placed with the window offset, so windowed mode works.
 - A link from another player of the same type no longer counts as this character's link.
-- A link is renewed when less than 40% of its duration is left (at least 1.5 s), instead of every 4 s.
+- **Links no longer run out between renewals.** The game shows no countdown on link buffs (their timer reads infinite), so each ally is timed from the last cast on them, using the link duration of the bot's own skill (*SkillEffectDuration*, gem and duration modifiers included; 4 s if it cannot be read). A link is renewed once 40% of that has passed: if a renewal goes to the wrong ally, the next one still comes before the link runs out.
+- **Links are renewed while catching up with the leader** once 75% of the duration has passed or when the link is gone. Before, every skill waited until the bot had caught up, which could take longer than the link lasts.
+- **Fewer casts on the wrong ally:** a renewal that is not urgent waits while another party member stands within 70 px of the ally on screen, and no key is pressed while the game marks another party member as the target.
 - Destructive Link uses the game's buff names (`critical_link_*`); before, it was never detected and re-cast endlessly.
 - A link skill on a skill bar slot without a key in *Input Keys* is reported once instead of silently "linking".
 
