@@ -30,6 +30,16 @@ namespace BetterFollowbot.Core.Movement
         private DateTime _entranceLabelWaitUntil = DateTime.MinValue;
         private uint _entranceLabelAreaHash;
 
+        // Where the leader was last seen in this area. The AutoPilot drops its copy the moment the leader's entity
+        // vanishes, but that spot is where the portal the leader just took stands.
+        private Vector3 _leaderLastPos = Vector3.Zero;
+        private DateTime _leaderLastSeenAt = DateTime.MinValue;
+        private uint _leaderPosAreaHash;
+        // A player portal this close to the leader's last position is the one the leader used (world units).
+        private const float LeaderPortalRange = 450f;
+        // The leader's last position is used for this long after the leader vanished.
+        private const double LeaderPortalMemorySec = 120;
+
         /// <summary>
         /// Checks if any blocking UI elements are open that should prevent path planning
         /// </summary>
@@ -71,6 +81,8 @@ namespace BetterFollowbot.Core.Movement
         {
             try
             {
+                TrackLeader(followTarget);
+
                 if (AutoPilot.IsTeleportInProgress)
                 {
                     _core.LogMessage($"TELEPORT: Blocking all task creation - teleport in progress ({_taskManager.TaskCount} tasks)");
@@ -276,7 +288,7 @@ namespace BetterFollowbot.Core.Movement
                             else if (PortalManager.IsSpecialArea(leaderPartyElement.ZoneName))
                             {
                                 _core.LogMessage($"ZONE TRANSITION: Leader in special area '{leaderPartyElement.ZoneName}' - using matching portal search instead of party TP");
-                                var matchingPortal = PortalManager.FindMatchingPortal(leaderPartyElement.ZoneName);
+                                var matchingPortal = FindLeaderTownPortal(leaderPartyElement) ?? PortalManager.FindMatchingPortal(leaderPartyElement.ZoneName);
                                 if (matchingPortal != null)
                                 {
                                     // Only create transition task if there isn't already one pending
@@ -301,7 +313,7 @@ namespace BetterFollowbot.Core.Movement
                             {
                                 // FIRST: Check for portals that match the leader's area name
                                 _core.LogMessage("ZONE TRANSITION: Checking for portals matching leader's area name first");
-                                var matchingPortal = PortalManager.FindMatchingPortal(leaderPartyElement.ZoneName);
+                                var matchingPortal = FindLeaderTownPortal(leaderPartyElement) ?? PortalManager.FindMatchingPortal(leaderPartyElement.ZoneName);
                                 if (matchingPortal != null)
                                 {
                                     // Only create transition task if there isn't already one pending
@@ -381,7 +393,7 @@ namespace BetterFollowbot.Core.Movement
                                 else if (PortalManager.IsSpecialArea(leaderPartyElement.ZoneName))
                                 {
                                     _core.LogMessage($"ZONE TRANSITION: Leader in special area '{leaderPartyElement.ZoneName}' - party TP not available, using matching portal search");
-                                    var matchingPortal = PortalManager.FindMatchingPortal(leaderPartyElement.ZoneName);
+                                    var matchingPortal = FindLeaderTownPortal(leaderPartyElement) ?? PortalManager.FindMatchingPortal(leaderPartyElement.ZoneName);
                                     if (matchingPortal != null)
                                     {
                                         _core.LogMessage($"ZONE TRANSITION: Found matching portal '{matchingPortal.Label?.Text}' for special area '{leaderPartyElement.ZoneName}'");
@@ -397,7 +409,7 @@ namespace BetterFollowbot.Core.Movement
                                 {
                                     // FIRST: Check for portals that match the leader's area name
                                     _core.LogMessage("ZONE TRANSITION: Checking for portals matching leader's area name first (null entity case)");
-                                    var matchingPortal = PortalManager.FindMatchingPortal(leaderPartyElement.ZoneName);
+                                    var matchingPortal = FindLeaderTownPortal(leaderPartyElement) ?? PortalManager.FindMatchingPortal(leaderPartyElement.ZoneName);
                                     if (matchingPortal != null)
                                     {
                                         _core.LogMessage($"ZONE TRANSITION: Found matching portal '{matchingPortal.Label?.Text}' for leader area '{leaderPartyElement.ZoneName}' (null entity case)");
@@ -507,7 +519,7 @@ namespace BetterFollowbot.Core.Movement
                                 else if (leaderPartyElement != null && PortalManager.IsSpecialArea(leaderPartyElement.ZoneName))
                                 {
                                     _core.LogMessage($"ZONE TRANSITION: Leader in special area '{leaderPartyElement.ZoneName}' - using matching portal search instead of party TP");
-                                    var matchingPortal = PortalManager.FindMatchingPortal(leaderPartyElement.ZoneName);
+                                    var matchingPortal = FindLeaderTownPortal(leaderPartyElement) ?? PortalManager.FindMatchingPortal(leaderPartyElement.ZoneName);
                                     if (matchingPortal != null)
                                     {
                                         // Only create transition task if there isn't already one pending
@@ -532,7 +544,7 @@ namespace BetterFollowbot.Core.Movement
                                 {
                                     // FIRST: Check for portals that match the leader's area name (endgame maps, etc.)
                                     _core.LogMessage("ZONE TRANSITION: Checking for portals matching leader's area name first (large movement case)");
-                                    var matchingPortal = PortalManager.FindMatchingPortal(leaderPartyElement.ZoneName);
+                                    var matchingPortal = FindLeaderTownPortal(leaderPartyElement) ?? PortalManager.FindMatchingPortal(leaderPartyElement.ZoneName);
                                     if (matchingPortal != null)
                                     {
                                         // Only create transition task if there isn't already one pending
@@ -783,6 +795,11 @@ namespace BetterFollowbot.Core.Movement
                     return null;
                 }
 
+                // The portal the leader just took beats every other portal and area transition.
+                var leaderPortal = FindLeaderTownPortal(leaderPartyElement);
+                if (leaderPortal != null)
+                    return leaderPortal;
+
                 var portalLabels = PortalManager.GetPortalsUsingEntities();
                 _core.LogMessage($"PORTAL DEBUG: GetBestPortalLabel found {portalLabels?.Count ?? 0} portals using entities");
 
@@ -896,6 +913,84 @@ namespace BetterFollowbot.Core.Movement
             _core.LogMessage($"ENTRANCE LABEL ({context}): clicking '{label.Label?.Text}' ({label.ItemOnGround.DistancePlayer:F0} away) instead of the party teleport, click {clicks}/{maxClicks}");
             _taskManager.AddTask(new TaskNode(label, settings.autoPilotPathfindingNodeDistance.Value, TaskNodeType.Transition));
             return true;
+        }
+
+        /// <summary>Remembers where the leader was last seen in this area (kept after the entity vanishes).</summary>
+        private void TrackLeader(Entity followTarget)
+        {
+            var areaHash = _core.GameController?.Area?.CurrentArea?.Hash ?? 0;
+            if (areaHash != _leaderPosAreaHash)
+            {
+                _leaderPosAreaHash = areaHash;
+                _leaderLastPos = Vector3.Zero;
+                _leaderLastSeenAt = DateTime.MinValue;
+            }
+
+            try
+            {
+                if (followTarget == null || !followTarget.IsValid)
+                    return;
+                var pos = followTarget.Pos;
+                if (pos == Vector3.Zero)
+                    return;
+                _leaderLastPos = pos;
+                _leaderLastSeenAt = DateTime.Now;
+            }
+            catch
+            {
+                // entity read failed this tick: keep the last known position
+            }
+        }
+
+        /// <summary>
+        /// The player portal (town portal) the leader just took: when the leader is in another zone, the visible portal
+        /// nearest to where the leader was last seen in this area, within LeaderPortalRange. It comes before the
+        /// zone-name match, the entrance labels and the party teleport: a leader who left through a portal is followed
+        /// through that portal, not through an area transition that happens to be on screen.
+        /// </summary>
+        private LabelOnGround FindLeaderTownPortal(PartyElementWindow leaderPartyElement)
+        {
+            try
+            {
+                var currentZone = _core.GameController?.Area?.CurrentArea?.DisplayName;
+                if (leaderPartyElement == null || string.IsNullOrEmpty(leaderPartyElement.ZoneName) ||
+                    string.IsNullOrEmpty(currentZone) || leaderPartyElement.ZoneName.Equals(currentZone))
+                    return null;
+                if (_leaderLastPos == Vector3.Zero || (DateTime.Now - _leaderLastSeenAt).TotalSeconds > LeaderPortalMemorySec)
+                    return null;
+
+                var labels = _core.GameController?.IngameState?.IngameUi?.ItemsOnGroundLabels;
+                if (labels == null)
+                    return null;
+
+                LabelOnGround best = null;
+                var bestDistance = LeaderPortalRange;
+                foreach (var label in labels)
+                {
+                    var entity = label?.ItemOnGround;
+                    if (entity == null || entity.Type != EntityType.TownPortal)
+                        continue;
+                    if (label.Label == null || !label.Label.IsValid || !label.Label.IsVisible)
+                        continue;
+
+                    var distance = Vector3.Distance(_leaderLastPos, entity.Pos);
+                    if (distance <= bestDistance)
+                    {
+                        bestDistance = distance;
+                        best = label;
+                    }
+                }
+
+                if (best != null)
+                    _core.LogMessage($"LEADER PORTAL: leader left for '{leaderPartyElement.ZoneName}' next to portal '{best.Label?.Text}' " +
+                                     $"({bestDistance:F0} from the leader's last position) - taking it first");
+                return best;
+            }
+            catch (Exception ex)
+            {
+                _core.LogMessage($"LEADER PORTAL: lookup failed: {ex.Message}");
+                return null;
+            }
         }
 
         private bool HasConflictingTransitionTasks()
